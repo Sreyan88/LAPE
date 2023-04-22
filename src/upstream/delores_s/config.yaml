@@ -1,0 +1,29 @@
+run:
+  num_dataloader_workers: 4
+  batch_size: 32
+  world_size: 4
+  save_path: src/upstream/delores_s/
+
+pretrain:
+  base_encoder:       # options are ....
+    type:  AudioNTT2020Task6
+    output_dim: 2048
+    return_all_layers: False
+  projection_dim: 2048
+  normalization: mean_var               # options mean_var (zero mean and unit variance) or l2
+  lambda_barlow: 5e-5
+  input:
+    type: raw_wav                       # options are raw_wav or mel spectrogram
+    sampling_rate: 16000                # the sampling rate of your audio; please maintain one sampling rate
+    length_wave: 0.95
+    n_mels: 64
+  augmentations:
+    MixupBYOLA:
+      ratio: 0.4
+      log_mixup_exp: True
+    RandomResizeCrop:
+      virtual_crop_scale: [1.0,1.5]
+      freq_crop_scale: [0.6,1.5]
+      time_crop_scale: [0.6,1.5]
+
+
