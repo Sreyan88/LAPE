@@ -6,6 +6,15 @@ LAPE is an easy-to-use toolkit for audio processing. In its initial release, LAP
 
 ## How to use?
 
+### Setup
+```
+conda create -n lape -y python=3.8
+conda activate lape
+```
+
+# install dependencies
+pip install -r requirements.txt
+
 ### Upstream SSL Pre-training
 
 Its simple! First create a csv file with a single column named *files*. That column should have absolute paths to your raw wav audio files. Next, for upstream SSL pre-training using un-labeled data just run:
@@ -52,7 +61,7 @@ If you have used the **LAPE** toolkit in your experiments, or the **DeLoRes-S** 
 
 If you have used the **MAST** audio encoder for your work:
 ```
-@inproceedings{nj2020investigation,
+@inproceedings{ghosh2023mast,
   title={MAST: Multiscale Audio Spectrogram Transformers},
   author={Ghosh, Sreyan and Seth, Ashish and Umesh, S and Manocha, Dinesh},
   booktitle={ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)},
@@ -63,19 +72,19 @@ If you have used the **MAST** audio encoder for your work:
 
 For **SLICER**, **UNFUSED** and **DECAR**:
 ```
-@inproceedings{ghosh2023mast,
-  title={MAST: Multiscale Audio Spectrogram Transformers},
-  author={Ghosh, Sreyan and Seth, Ashish and Umesh, S and Manocha, Dinesh},
+@inproceedings{seth2023slicer,
+  title={SLICER: Learning universal audio representations using low-resource self-supervised pre-training},
+  author={Seth, Ashish and Ghosh, Sreyan and Umesh, S and Manocha, Dinesh},
   booktitle={ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)},
   year={2023},
   organization={IEEE}
 }
 ```
 ```
-@inproceedings{seth2023slicer,
-  title={SLICER: Learning universal audio representations using low-resource self-supervised pre-training},
+@inproceedings{seth2023unfused,
+  title={UNFUSED: UNsupervised Finetuning Using SElf supervised Distillation},
   author={Seth, Ashish and Ghosh, Sreyan and Umesh, S and Manocha, Dinesh},
-  booktitle={ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)},
+  booktitle={ICASSP 2023-2023 SASB Workshop},
   year={2023},
   organization={IEEE}
 }
