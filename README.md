@@ -10,10 +10,8 @@ LAPE is an easy-to-use toolkit for audio processing. In its initial release, LAP
 ```
 conda create -n lape -y python=3.8
 conda activate lape
-```
-
-# install dependencies
 pip install -r requirements.txt
+```
 
 ### Upstream SSL Pre-training
 
