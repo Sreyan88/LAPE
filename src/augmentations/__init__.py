@@ -23,14 +23,13 @@ class AugmentationModule:
         if "RandomResizeCrop" in config["pretrain"]["augmentations"]:
             list_augmentations.append(RandomResizeCrop(virtual_crop_scale=config["pretrain"]["augmentations"]["RandomResizeCrop"]["virtual_crop_scale"], freq_scale=config["pretrain"]["augmentations"]["RandomResizeCrop"]["freq_crop_scale"], time_scale=config["pretrain"]["augmentations"]["RandomResizeCrop"]["time_crop_scale"]))
         if "Kmix" in config["pretrain"]["augmentations"]:
-            pass #@Ashish please fill this, also temporarily add in src/upstream/delores_s/config.yaml
+            list_augmentations.append(Kmix(ratio=config["pretrain"]["augmentations"]["Kmix"]["ratio"], log_mixup_exp=config["pretrain"]["augmentations"]["Kmix"]["log_mixup_exp"], top_k=config["pretrain"]["augmentations"]["Kmix"]["top_k"], centroid_path=config["pretrain"]["augmentations"]["Kmix"]["centroid_path"]))
         if "PatchDrop" in config["pretrain"]["augmentations"]:
-            pass #@Ashish please fill this, also temporarily add in src/upstream/delores_s/config.yaml
+            list_augmentations.append(PatchDrop(patch_drop=config["pretrain"]["augmentations"]["PatchDrop"]["ratio"]))
 
         return list_augmentations
 
     def __call__(self, x):
         if self.pre_norm:
             x = self.pre_norm(x)
-        # Do all models require two inputs, if not please add a condition related to a config
         return self.train_transform(x), self.train_transform(x)

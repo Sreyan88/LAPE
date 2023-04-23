@@ -7,7 +7,6 @@ class DELORES_S(nn.Module):
     Delores: Decorrelating latent spaces for low-resource audio representation learning
     https://arxiv.org/pdf/2203.13628.pdf
     """
-    #@Ashish remove all arguments not required
     def __init__(self, config, base_encoder):
         super().__init__()
 
