@@ -21,6 +21,13 @@ pretrain:
     MixupBYOLA:
       ratio: 0.4
       log_mixup_exp: True
+    Kmix:
+      ratio: 0.4
+      log_mixup_exp: True
+      top_k: 128
+      centroid_path: None
+    PatchDrop:
+      ratio: 0.3
     RandomResizeCrop:
       virtual_crop_scale: [1.0,1.5]
       freq_crop_scale: [0.6,1.5]

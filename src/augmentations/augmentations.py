@@ -62,7 +62,10 @@ class RandomResizeCrop(nn.Module):
 
 
 class PatchDrop(nn.Module):
-    """Add something here @Ashish
+    """
+    Patch Drop for MAST
+    Args:
+        patch_drop: provide the ratio of patch drop in [0,1)
     """
     def __init__(self, patch_drop):
         super().__init__()
@@ -120,19 +123,22 @@ class Kmix(nn.Module):
         ratio: Alpha in the paper.
         n_memory: Size of memory bank FIFO.
         log_mixup_exp: Use log-mixup-exp to mix if this is True, or mix without notion of log-scale.
+        top_k: select the top k from the sorted array
+        centroid_path: centroid matrix path stored in torch tensor format
     """
 
-    def __init__(self, ratio=0.4, n_memory=2048, log_mixup_exp=True):
+    def __init__(self, ratio=0.4, n_memory=2048, log_mixup_exp=True, top_k=None, centroid_path=None):
         super().__init__()
         self.ratio = ratio
         self.n = n_memory
         self.log_mixup_exp = log_mixup_exp
         self.memory_bank = []
-        self.centroids = torch.load('tensor_data.pt')
+        self.centroids = torch.load(centroid_path) #Centroid path must be in torch tensor format
+        self.top_k = top_k
 
 
     def get_index(self, x):
-        if len(self.memory_bank) < 128: #lets not hardcode this @Ashish
+        if len(self.memory_bank) < self.top_k:
             return None
         else:
             centroids = self.centroids
