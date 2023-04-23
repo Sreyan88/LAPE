@@ -95,3 +95,7 @@ For **SLICER**, **UNFUSED** and **DECAR**:
   year={2021}
 }
 ```
+
+## Contact and Contributors
+Ashish Seth (email: cs20s030@smail.iitm.ac.in)
+[Sreyan Ghosh](https://sreyan88.github.io/) (email: sreyang@umd.edu)
