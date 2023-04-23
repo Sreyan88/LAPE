@@ -37,7 +37,7 @@ class MAST(nn.Module):
     :param audioset_pretrain: if use full AudioSet and ImageNet pretrained model
     :param model_size: the model size of AST, should be in [tiny224, small224, base224, base384], base224 and base 384 are same model, but are trained differently during ImageNet pretraining.
     """
-    def __init__(self, label_dim=None, fstride=10, tstride=10, input_fdim=128, input_tdim=512, imagenet_pretrain=False, audioset_pretrain=False, model_size='base', verbose=True):
+    def __init__(self, label_dim=None, fstride=10, tstride=10, input_fdim=128, input_tdim=512, imagenet_pretrain=False, audioset_pretrain=False, model_size='base', verbose=True, return_cls=False):
 
         super(MAST, self).__init__()
 
