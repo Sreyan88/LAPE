@@ -91,14 +91,12 @@ def main(gpu, args):
 
     if args.freeze:
         freeze_encoder(model)
+
+    if args.checkpoint is not None:
+        load_pretrained_encoder(model,args)
     
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
 
-    if args.checkpoint is not None:
-        # Working need to make it work for ddp pretraining
-        load_pretrained_encoder(model,args)
-    
-    
     criterion = nn.CrossEntropyLoss().cuda(gpu)
     optimizer = torch.optim.Adam(
         filter(lambda x: x.requires_grad, model.parameters()),
@@ -218,7 +216,7 @@ def get_args():
     parser.add_argument("--train_csv", help="path to data directory", type=str, default='/speech/ashish/test_label_data.csv')
     parser.add_argument("--valid_csv", help="path to data directory", type=str, default=None)
     parser.add_argument("--test_csv", help="path to data directory", type=str, default='/speech/ashish/test_label_data.csv')
-    parser.add_argument('--checkpoint', type=str, help='path to pre-trained checkpoint', default = None)
+    parser.add_argument('--checkpoint', type=str, help='path to pre-trained checkpoint', default = '/fs/nexus-projects/audio-visual_dereverberation/githubs/audio-ssl/src/upstream/delores_m/_chkp/epoch=0.ckpt')
     parser.add_argument('--encoder', type=str, help='type of encoder you want to use', default = 'AudioNTT2020Task6')
     parser.add_argument('--freeze', type=bool, help='if you want to freeze the encoder for downstream fine-tuning', default = False)
     parser.add_argument('--exp_dir',default='./exp',type=Path,help="experiment root directory")

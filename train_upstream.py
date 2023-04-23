@@ -62,7 +62,7 @@ def main(args):
         trainer = pl.Trainer(checkpoint_callback = checkpoint_callback,)
     
     trainer.fit(model, dm)
-    trainer.save_checkpoint("/speech/ashish/example_test.ckpt")
+    trainer.save_checkpoint(config['run']['save_path']+'final.ckpt')
 
 
 def get_args():

@@ -115,7 +115,7 @@ class Upstream_Expert(pl.LightningModule):
     @torch.no_grad()
     def _dequeue_and_enqueue(self, keys):
         # gather keys before updating queue
-        if self.trainer.use_ddp or self.trainer.use_ddp2:
+        if self.trainer.strategy =="ddp":
             keys = concat_all_gather(keys)
 
         batch_size = keys.shape[0]
@@ -192,12 +192,12 @@ class Upstream_Expert(pl.LightningModule):
         with torch.no_grad():  # no gradient to keys
             self._momentum_update_key_encoder()  # update the key encoder
             # shuffle for making use of BN
-            if self.trainer.use_ddp or self.trainer.use_ddp2:
+            if self.trainer.strategy =="ddp":
                 img_k, idx_unshuffle = self._batch_shuffle_ddp(img_k)
             k_instance, k_cluster = self.encoder_k(img_k)  # keys: NxC
             k_instance = nn.functional.normalize(k_instance, dim=1)
             # undo shuffle
-            if self.trainer.use_ddp or self.trainer.use_ddp2:
+            if self.trainer.strategy =="ddp":
                 k_instance = self._batch_unshuffle_ddp(k_instance, idx_unshuffle)
         
         # compute logits

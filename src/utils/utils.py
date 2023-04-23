@@ -219,11 +219,15 @@ def loss_fn_mse(x, y):
         return l.mean()
 
 def load_pretrained_encoder(model, args):
-    module_path_expert = f'src.upstream.{args.upstream}.upstream_expert'
-    expert = getattr(importlib.import_module(module_path_expert), 'Upstream_Expert')
-    backbone = expert.load_from_checkpoint(args.checkpoint, strict=False)
-    wts = backbone.encoder_q.state_dict()
-    mod_missing_keys,mod_unexpected_keys = model.module.load_state_dict(wts,strict=False)
+    backbone = torch.load(args.checkpoint,map_location='cpu')
+    wts = backbone['state_dict'].copy()
+    for key in list(wts.keys()):
+        if 'encoder_q' in key:
+            print(key)
+            print(key.replace('encoder_q.',''))
+            wts[key.replace('encoder_q.','')] = wts[key]
+
+    mod_missing_keys,mod_unexpected_keys = model.load_state_dict(wts,strict=False)
     print('Missing Keys:  ',mod_missing_keys)
     print('Unexpected Keys:  ',mod_unexpected_keys)
     return model
