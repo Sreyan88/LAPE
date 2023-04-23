@@ -14,13 +14,13 @@ from src.augmentations import AugmentationModule
 from src.utils import check_downstream_hf_availability
 from src.downstream.downstream_encoder import DownstreamEncoder
 from src.dataset.downstream_dataset import DownstreamDataset,DownstreamDatasetHF
-from src.utils import freeze_encoder, get_logger, create_exp_dir, AverageMeter, Metric, load_pretrained_encoder
+from src.utils import freeze_encoder, get_logger, AverageMeter, Metric, load_pretrained_encoder
 
 def main(gpu, args):
 
     if args.config is None:
-        default_upstream_config = "src/downstream/downstream_config.yaml"
-        with open(default_upstream_config, 'r') as duc:
+        default_downstream_config = "src/downstream/downstream_config.yaml"
+        with open(default_downstream_config, 'r') as duc:
             config = yaml.load(duc, Loader=yaml.FullLoader)
     else:
         with open(args.config, 'r') as duc:
@@ -47,26 +47,37 @@ def main(gpu, args):
     assert config['run']['batch_size'] % args.world_size == 0
     per_device_batch_size = config['run']['batch_size'] // args.world_size
 
+
+    eval_dataset = None
+    eval_loader = None
     # If the dataset is availble in HuggingFace
     if check_downstream_hf_availability(args.task) == "hf":
         train_dataset = DownstreamDatasetHF(args,config,split='train')
         test_dataset = DownstreamDatasetHF(args,config,split='test')
-        if args.valid_csv:
+        if config['run']['eval']:
             eval_dataset = DownstreamDatasetHF(args,config,split='validation')
     # If the dataset is NOT availble in HuggingFace
     else:
         train_dataset = DownstreamDataset(args,config,split='train')
         test_dataset = DownstreamDataset(args,config,split='test',labels_dict=train_dataset.labels_dict)
-        if args.valid_csv:
-            eval_dataset = DownstreamDataset(args,config,split='validation',labels_dict=train_dataset.labels_dict)
+        if config['run']['eval']:
+            if args.valid_csv:
+                eval_dataset = DownstreamDataset(args,config,split='validation',labels_dict=train_dataset.labels_dict)
+            else:
+                raise Exception('Evaluation will be done since eval=True set in config but no validation csv specified.')
     
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, shuffle=True, seed=1) #shuffle
-
     train_loader = torch.utils.data.DataLoader(train_dataset,batch_size=per_device_batch_size,
                                                 pin_memory=True,sampler = train_sampler,num_workers=0)
 
+    test_sampler = torch.utils.data.distributed.DistributedSampler(test_dataset, shuffle=False, seed=1) #shuffle
     test_loader = torch.utils.data.DataLoader(test_dataset,batch_size=per_device_batch_size,
                                                 pin_memory=True, num_workers=0)
+
+    if eval_dataset is not None:
+        eval_sampler = torch.utils.data.distributed.DistributedSampler(eval_dataset, shuffle=False, seed=1) #shuffle
+        eval_loader = torch.utils.data.DataLoader(eval_dataset,batch_size=per_device_batch_size,
+                                                pin_memory=True,sampler = eval_sampler,num_workers=0)
 
     # override the encoder if encoder is specified
     if args.encoder is not None:
@@ -84,7 +95,7 @@ def main(gpu, args):
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
 
     if args.checkpoint is not None:
-        #Working need to make it work for ddp pretraining
+        # Working need to make it work for ddp pretraining
         load_pretrained_encoder(model,args)
     
     
@@ -96,29 +107,45 @@ def main(gpu, args):
 
     if args.rank == 0 : logger.info("started training")
 
-    train_accuracy = []
+    train_accuracy=[]
     train_losses=[]
-    test_accuracy = []
+    eval_accuracy=[]
+    eval_losses=[]
+    test_accuracy=[]
     test_losses=[]
 
     for epoch in range(0, config["run"]["epochs"]):
         train_sampler.set_epoch(epoch)
         train_stats = train_one_epoch(train_loader, model, criterion, optimizer, epoch,gpu,args)
 
-        if args.rank == 0 :
-            eval_stats = eval(epoch,model,test_loader,criterion,gpu)
-            test_accuracy.append(eval_stats["accuracy"].avg)
-            stats = dict(epoch=epoch,
-                    Train_loss=train_stats["loss"].avg.cpu().numpy().item(),
-                    Test_Loss=(eval_stats["loss"].avg).numpy().item(),
-                    Test_Accuracy =eval_stats["accuracy"].avg,
-                    Best_Test_Acc=max(test_accuracy))
-            print(stats)
-            print(json.dumps(stats), file=stats_file)
+        if eval_loader is not None:
+            if args.rank == 0 :
+                eval_stats = eval(epoch,model,eval_loader,criterion,gpu)
+                eval_accuracy.append(eval_stats["accuracy"].avg)
+                stats = dict(epoch=epoch,
+                        Train_loss=eval_stats["loss"].avg.cpu().numpy().item(),
+                        Test_Loss=(eval_stats["loss"].avg).numpy().item(),
+                        Test_Accuracy =eval_stats["accuracy"].avg,
+                        Best_Test_Acc=max(eval_accuracy))
+                print(stats)
+                print(json.dumps(stats), file=stats_file)
+        
+        if ((epoch + 1) % config['run']['test_every_n_epochs']) == 0:
+            if args.rank == 0 :
+                test_stats = eval(epoch,model,test_loader,criterion,gpu)
+                test_accuracy.append(eval_stats["accuracy"].avg)
+                stats = dict(epoch=epoch,
+                        Train_loss=train_stats["loss"].avg.cpu().numpy().item(),
+                        Test_Loss=(test_stats["loss"].avg).numpy().item(),
+                        Test_Accuracy =test_stats["accuracy"].avg,
+                        Best_Test_Acc=max(test_accuracy))
+                print(stats)
+                print(json.dumps(stats), file=stats_file)
     
     if args.rank ==0 :
-        print("max valid accuracy : {}".format(max(test_accuracy)))
-        plt.plot(range(1,len(train_accuracy)+1), train_accuracy, label = "train accuracy",marker = 'x')
+        print("max validation accuracy : {}".format(max(eval_accuracy)))
+        print("max test accuracy : {}".format(max(test_accuracy)))
+        plt.plot(range(1,len(eval_accuracy)+1), eval_accuracy, label = "train accuracy",marker = 'x')
         plt.legend()
         plt.savefig(args.exp_root / 'accuracy.png')
 
@@ -173,7 +200,7 @@ def eval(epoch,model,loader,crit,gpu):
                 input_tensor =input_tensor.cuda(gpu ,non_blocking=True)
                 targets = targets.cuda(gpu,non_blocking=True)
             with torch.cuda.amp.autocast():
-                outputs = model(input_tensor)
+                outputs = model(input_tensor.float())
                 loss = crit(outputs, targets)
                 preds = torch.argmax(outputs,dim=1)==targets
 
@@ -187,13 +214,13 @@ def get_args():
     parser = argparse.ArgumentParser(allow_abbrev=False)
 
     # Add data arguments
-    parser.add_argument("--task", help="path to data directory", type=str, default='test_task')
+    parser.add_argument("--task", help="path to data directory", type=str, default='speech_commands_v1')
     parser.add_argument("--train_csv", help="path to data directory", type=str, default='/speech/ashish/test_label_data.csv')
     parser.add_argument("--valid_csv", help="path to data directory", type=str, default=None)
     parser.add_argument("--test_csv", help="path to data directory", type=str, default='/speech/ashish/test_label_data.csv')
-    parser.add_argument('--checkpoint', type=str, help='path to pre-trained checkpoint', default = '/speech/ashish/example_test.ckpt')
+    parser.add_argument('--checkpoint', type=str, help='path to pre-trained checkpoint', default = None)
     parser.add_argument('--encoder', type=str, help='type of encoder you want to use', default = 'AudioNTT2020Task6')
-    parser.add_argument('--freeze', type=bool, help='if you want to freeze the encoder for downstream fine-tuning', default = True)
+    parser.add_argument('--freeze', type=bool, help='if you want to freeze the encoder for downstream fine-tuning', default = False)
     parser.add_argument('--exp_dir',default='./exp',type=Path,help="experiment root directory")
     parser.add_argument('--upstream', type=str, help='define the type of upstream', default = 'delores_m')
     parser.add_argument('-c', '--config', metavar='CONFIG_PATH', help='The yaml file for configuring the whole experiment, except the upstream model', default = "src/downstream/downstream_config.yaml")

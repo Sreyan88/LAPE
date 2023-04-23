@@ -33,12 +33,34 @@ def check_downstream_hf_availability(task):
     task_to_loc = {
         "speech_commands_v1" : "hf",
         "speech_commands_v2" : "hf",
-        "speech_commands_v235" : "hf",
+        "speech_commands_v2_35" : "hf",
     }
     try:
         return task_to_loc[task]
     except:
-        return "nhf"
+        return "no_hf"
+
+
+def map_labels(sample,other_label_id,id_to_keep):
+    label = sample["label"]
+    sample["label"] = other_label if label in id_to_keep else label
+    return sample
+
+def filter_dataset(dataset,task,labels_dict):
+
+    label2id = {i:k for k,i in labels_dict}
+
+    if task == "speech_commands_v2":
+        labels_to_keep = ['down', 'go', 'silence', 'on', 'stop', 'left', 'no', 'up', 'yes', 'off', 'right']
+        id_to_keep = [label2id[item] for item in label2id if item not in labels_to_keep]
+        other_label_id = len(labels_to_keep)
+        dataset = dataset.map(map_labels,other_label_id,id_to_keep)
+        dataset.cast_column("label", datasets.ClassLabel(names=[i for i in range(other_label_id)]))
+
+    return dataset
+
+
+
 
 def extract_log_mel_spectrogram(waveform, to_mel_spec):
     """Mel spectrogram using librosa.

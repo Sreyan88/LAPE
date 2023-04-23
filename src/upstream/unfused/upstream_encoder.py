@@ -3,9 +3,9 @@ from torch import nn
 
 class UNFUSED(nn.Module):
     """
-    Encoder for our IEEE JSTSP Paper:
-    Decorrelating Feature Spaces for Learning General-Purpose Audio Representations
-    https://ieeexplore.ieee.org/document/9868132
+    Encoder for our IEEE ICASSP SASB Workshop Paper:
+    UNFUSED: UNsupervised Finetuning Using SElf supervised Distillation
+    https://arxiv.org/pdf/2303.05668.pdf
     """
     
     def __init__(self, config, base_encoder):
@@ -15,12 +15,17 @@ class UNFUSED(nn.Module):
     def forward(self, x):
 
         if repr(self.encoder) == "AudioNTT2020Task6":
-            x, x_1, x_2, x_3 = self.encoder(x)
+            x = self.encoder(x)
         else:
-            raise NotImplementedError("Unfused currently supports just AudioNTT2020Task6 encoder")
+            raise NotImplementedError("UNFUSED currently supports just AudioNTT2020Task6 encoder")
+
+        if self.return_all_layers == False:
+            raise NotImplementedError("UNFUSED needs return_all_layers = True to be set in the config!")
+        else:
+            l1, l2, l3, x = x
 
         (x1, _) = torch.max(x, dim=1)
         x2 = torch.mean(x, dim=1)
         x = x1 + x2
 
-        return x, (x_1, x_2, x_3)
+        return x, (l_1, l_2, l_3)

@@ -8,7 +8,7 @@ from datasets import load_dataset
 from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
 
-from src.utils import extract_log_mel_spectrogram, extract_window, MelSpectrogramLibrosa, select_columns
+from src.utils import extract_log_mel_spectrogram, extract_window, MelSpectrogramLibrosa, select_columns, filter_dataset
 
 class DownstreamDatasetHF(Dataset):
 
@@ -20,11 +20,21 @@ class DownstreamDatasetHF(Dataset):
             self.task = "_".join(args.task.split("_")[:2]) # To accomodate for version in input task
         else:
             self.task = args.task
-        self.dataset = load_dataset(self.task, self.version, split = split)
 
-        if ('speech_commands' in args.task) and (self.version == 'v0.02') and ('35' in args.task):
-            pass
+        try:
+            self.dataset = load_dataset(self.task, self.version, split = split)
+        except Exception:
+            raise Exception('Error in loading {} split of {} dataset. Please check if the dataset name is correct or the speicific split is available in 🤗'.format(self.task,split))
 
+        if split == 'train':
+            self.dataset = self.dataset.shuffle(seed=42)
+
+        self.filtered = False
+        if ('speech_commands' in args.task) and (self.version == 'v0.02') and ('35' not in args.task):
+            labels_dict = self.get_id2label() #Used to filter labels in the next step
+            self.dataset = filter_dataset(self.dataset,self.task,labels_dict) #Filter labels
+            self.filtered = True
+            
         self.sample_rate = self.config["downstream"]["input"]["sampling_rate"]
         self.duration= self.config["run"]["duration"] * self.sample_rate
         self.labels_dict = self.get_id2label()

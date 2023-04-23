@@ -3,14 +3,15 @@ from torch import nn
 
 class SLICER(nn.Module):
     """
-    Encoder for our IEEE JSTSP Paper:
-    Decorrelating Feature Spaces for Learning General-Purpose Audio Representations
-    https://ieeexplore.ieee.org/document/9868132
+    Encoder for our IEEE ICASSP 2023 Paper:
+    SLICER: Learning universal audio representations using low-resource self-supervised pre-training
+    https://arxiv.org/pdf/2211.01519.pdf
     """
     
     def __init__(self, config, base_encoder):
         super().__init__()
 
+        self.return_all_layers = config["pretrain"]["base_encoder"]["return_all_layers"]
         self.encoder = base_encoder(config["pretrain"]["input"]["n_mels"], config["pretrain"]["base_encoder"]["output_dim"], config["pretrain"]["base_encoder"]["return_all_layers"])
         self.instance_projector = nn.Linear(config["pretrain"]["base_encoder"]["output_dim"], config["pretrain"]["instance_contrastive_dim"])
         self.cluster_projector = nn.Sequential(
@@ -25,6 +26,9 @@ class SLICER(nn.Module):
             x = self.encoder(x)
         else:
             raise NotImplementedError("SLICER currently supports just AudioNTT2020Task6 encoder")
+
+        if self.return_all_layers:
+            x = x[-1]
 
         (x1, _) = torch.max(x, dim=1)
         x2 = torch.mean(x, dim=1)

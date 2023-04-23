@@ -23,7 +23,7 @@ class DELORES_M(nn.Module):
             raise NotImplementedError("DELORES_M currently supports just AudioNTT2020Task6 encoder")
 
         if self.return_all_layers == False:
-            raise NotImplementedError("DELORES_M need return_all_layers = True to be set in the config!")
+            raise NotImplementedError("DELORES_M needs return_all_layers = True to be set in the config!")
         else:
             l1, l2, l3, x = x
         

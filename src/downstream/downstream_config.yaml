@@ -7,18 +7,20 @@ run:
   freeze: False
   epochs: 100
   lr: 0.001
+  eval: True
+  test_every_n_epochs: 1
 
 downstream:
-  base_encoder:                         # options are ....
+  base_encoder:                                          # options are ....
     type:  AudioNTT2020Task6
     output_dim: 2048
     return_all_layers: True
     interim_layer_output_shapes: [2048,1024,512]
-  finetune_layer: -1                     # specify -1 for last layer or any number for representations from that layer
-  normalization: mean_var               # options mean_var (zero mean and unit variance) or l2
+  finetune_layer: -1                                     # specify -1 for last layer or any number for representations from that layer
+  normalization: mean_var                                # options mean_var (zero mean and unit variance) or l2
   input:
-    type: raw_wav                       # options are raw_wav or mel spectrogram
-    sampling_rate: 16000                # the sampling rate of your audio; please maintain one sampling rate
+    type: raw_wav                                        # options are raw_wav or mel spectrogram
+    sampling_rate: 16000                                 # the sampling rate of your audio; please maintain one sampling rate
     length_wave: 0.95
     n_mels: 64
   augmentations:
