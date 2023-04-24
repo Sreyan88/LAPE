@@ -71,7 +71,7 @@ def get_args():
     # Clean the ones not required @Ashish
 
     # Add data arguments
-    parser.add_argument("--input", help="path to data directory", type=str, default='/speech/ashish/test_audio.csv')
+    parser.add_argument("--input", help="path to data directory", type=str, default='/fs/nexus-projects/audio-visual_dereverberation/githubs/audio-ssl/pre_train.csv')
     parser.add_argument('--load_checkpoint', type=str, help='load checkpoint', default = None)
     parser.add_argument('-c', '--config', metavar='CONFIG_PATH', help='The yaml file for configuring the whole experiment, except the upstream model', default = None)
     parser.add_argument('--upstream', type=str, help='define the type of upstream', default = 'delores_m')

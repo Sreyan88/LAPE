@@ -40,13 +40,10 @@ class Projection(nn.Module):
         on_diag = torch.diagonal(c).add_(-1).pow_(2).sum().mul(self.scale_loss)
         off_diag = off_diagonal(c).pow_(2).sum().mul(self.scale_loss)
         if self.lambd:
-            loss = self.lambd *on_diag + self.lambd * off_diag
+            loss = (float(self.lambd) * on_diag) + (float(self.lambd) * off_diag)
         else:
             loss = on_diag + off_diag    
         return loss
-
-# precision = Precision() 
-
 
 
 class Upstream_Expert(pl.LightningModule):
@@ -116,7 +113,7 @@ class Upstream_Expert(pl.LightningModule):
         # create the encoders
         # num_classes is the output fc dimension
         self.encoder = self.init_encoders(self.base_encoder)
-        self.p = Projection(self.config["pretrain"]["projection_dim"],self.config["pretrain"]["lambda_barlow"])  
+        self.p = Projection(self.config["pretrain"]["projection_dim"],lambd=self.config["pretrain"]["lambda_barlow"])  
 
     def init_encoders(self, base_encoder):
         """
