@@ -12,7 +12,7 @@ class MAST(nn.Module):
     https://arxiv.org/pdf/2211.01515.pdf
     """
 
-    def __init__(self, label_dim=None, input_tdim=1024, imagenet_pretrain = False, audioset_pretrain = False, model_size='base', return_cls=False, patch_drop=0.1):
+    def __init__(self, label_dim=None, input_tdim=1024, imagenet_pretrain = False, audioset_pretrain = False, model_size='small_cls', return_cls=False, patch_drop=0.1):
         super(MAST, self).__init__()
 
         self.mast_model = mast(label_dim=label_dim, input_tdim=input_tdim, imagenet_pretrain = imagenet_pretrain, audioset_pretrain = audioset_pretrain, model_size=model_size, return_cls=return_cls)

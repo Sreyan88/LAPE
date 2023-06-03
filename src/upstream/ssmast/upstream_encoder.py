@@ -28,7 +28,7 @@ class SSMAST(nn.Module):
 
     def forward(self, batch, return_before_head=False):
 
-        z = self.ast_model(batch, patch_drop=0.0)
+        z = self.encoder(batch, patch_drop=0.0)
         x = self.mlp(z.float())
 
         return x

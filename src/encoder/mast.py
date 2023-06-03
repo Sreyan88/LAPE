@@ -47,6 +47,7 @@ class MAST(nn.Module):
 
         timm.models.mvitv2.PatchEmbed = Patch_Embed
         self.mlp_head = None
+        self.has_cls = False
 
         # if AudioSet pretraining is not used (but ImageNet pretraining may still apply)
         if audioset_pretrain == False:
@@ -62,7 +63,7 @@ class MAST(nn.Module):
                 self.v = timm.create_model('mvitv2_small_cls', pretrained=imagenet_pretrain)
                 self.has_cls = True
             else:
-                raise Exception('Model size must be one of tiny, small, base, large.')
+                raise Exception('Model size must be one of tiny, small, base, large or small_cls.')
             
             self.original_num_patches = self.v.patch_embed.num_patches
             self.oringal_hw = int(self.original_num_patches ** 0.5)
@@ -169,6 +170,7 @@ class MAST(nn.Module):
         :return: prediction
         """
         # expect input x = (batch_size, time_frame_num, frequency_bins), e.g., (12, 1024, 128)
+        x = x.unsqueeze(1)
         x = x.transpose(2, 3)
 
         B = x.shape[0]
@@ -185,6 +187,7 @@ class MAST(nn.Module):
                 
         thw = [H, W]
         for blk in self.v.stages:
+            print(x.shape)
             x, thw = blk(x, thw)
             
         if self.has_cls and return_cls:
@@ -197,3 +200,11 @@ class MAST(nn.Module):
             x = self.mlp_head(x)
 
         return x
+
+
+if __name__ == '__main__':
+    input_tdim = 512
+    ast_mdl = MAST(label_dim=None, input_tdim=input_tdim, imagenet_pretrain = False, audioset_pretrain = False, model_size='base', return_cls=False)
+    test_input = torch.rand([10, input_tdim, 128])
+    test_output = ast_mdl(test_input,patch_drop=0.0)
+    print(test_output.shape)
