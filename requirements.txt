@@ -22,9 +22,11 @@ clang==5.0
 cmake==3.26.1
 comm==0.1.3
 cycler==0.10.0
+datasets==2.11.0
 debugpy==1.6.6
 decorator==5.1.0
 defusedxml==0.7.1
+dill==0.3.6
 efficientnet-pytorch==0.7.1
 executing==1.2.0
 fastjsonschema==2.16.3
@@ -77,11 +79,9 @@ MarkupSafe==2.1.2
 matplotlib==3.4.3
 matplotlib-inline==0.1.6
 mistune==2.0.5
-mkl-fft==1.3.0
-mkl-random==1.2.2
-mkl-service==2.4.0
 mpmath==1.3.0
 multidict==5.2.0
+multiprocess==0.70.14
 nbclassic==0.5.4
 nbclient==0.7.3
 nbconvert==7.3.0
@@ -123,6 +123,7 @@ protobuf==3.18.1
 psutil==5.9.4
 ptyprocess==0.7.0
 pure-eval==0.2.2
+pyarrow==11.0.0
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pycparser==2.20
@@ -132,7 +133,6 @@ pyrsistent==0.19.3
 python-dateutil==2.8.2
 python-json-logger==2.0.7
 pytorch-lightning==1.9.0
-pytorch-lightning-bolts @ git+https://github.com/PytorchLightning/pytorch-lightning-bolts.git@1bec12200ff60b9b58277b40d9232933e1aa9dbe
 pytz==2021.3
 PyYAML==6.0
 pyzmq==25.0.2
@@ -141,6 +141,7 @@ QtPy==2.3.1
 requests==2.26.0
 requests-oauthlib==1.3.0
 resampy==0.2.2
+responses==0.18.0
 rfc3339-validator==0.1.4
 rfc3986-validator==0.1.1
 rsa==4.7.2
@@ -163,9 +164,6 @@ terminado==0.17.1
 threadpoolctl==3.0.0
 timm==0.6.13
 tinycss2==1.2.1
-torch==1.13.1+cu116
-torchmetrics==0.11.4
-torchvision==0.15.1
 tornado==6.2
 tqdm==4.62.3
 traitlets==5.9.0
@@ -181,7 +179,7 @@ Werkzeug==2.0.2
 wget==3.2
 widgetsnbextension==4.0.7
 wrapt==1.12.1
+xxhash==3.2.0
 yacs==0.1.8
 yarl==1.7.2
 zipp==3.15.0
-datasets
