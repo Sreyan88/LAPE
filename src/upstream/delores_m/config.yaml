@@ -1,7 +1,7 @@
 run:
-  num_dataloader_workers: 0
-  batch_size: 32
-  world_size: 1
+  num_dataloader_workers: 4
+  batch_size: 128
+  world_size: 4
   save_path: src/upstream/delores_m/
 
 pretrain:

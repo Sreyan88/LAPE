@@ -51,15 +51,15 @@ def main(args):
                                 filename='{epoch}',
                                 monitor="train_loss", 
                                 mode="min",
-                                save_top_k=1)
+                                save_top_k=3)
         
     if torch.cuda.is_available():
         if args.load_checkpoint:
-            trainer = pl.Trainer(gpus=config["run"]["world_size"], callbacks = [checkpoint_callback], accelerator="gpu", strategy="ddp", resume_from_checkpoint=args.load_checkpoint)
+            trainer = pl.Trainer(default_root_dir=config['run']['save_path'], gpus=config["run"]["world_size"], callbacks = [checkpoint_callback], accelerator="gpu", strategy="ddp", resume_from_checkpoint=args.load_checkpoint)
         else:
-            trainer = pl.Trainer(gpus=config["run"]["world_size"], callbacks = [checkpoint_callback], max_epochs=1)
+            trainer = pl.Trainer(default_root_dir=config['run']['save_path'], gpus=config["run"]["world_size"], callbacks = [checkpoint_callback], max_epochs=50)
     else:
-        trainer = pl.Trainer(checkpoint_callback = checkpoint_callback,)
+        trainer = pl.Trainer(default_root_dir=config['run']['save_path'], checkpoint_callback = checkpoint_callback,)
     
     trainer.fit(model, dm)
     trainer.save_checkpoint(config['run']['save_path']+'final.ckpt')
@@ -67,8 +67,6 @@ def main(args):
 
 def get_args():
     parser = argparse.ArgumentParser(allow_abbrev=False)
-
-    # Clean the ones not required @Ashish
 
     # Add data arguments
     parser.add_argument("--input", help="path to data directory", type=str, default='/fs/nexus-projects/audio-visual_dereverberation/githubs/audio-ssl/pre_train.csv')
