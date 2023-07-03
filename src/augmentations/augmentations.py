@@ -4,6 +4,35 @@ import logging
 import torch.nn.functional as F
 import numpy as np
 import random
+from src.dataset.upstream_dataset import BaseDataset
+import pandas as pd
+import faiss
+
+
+#calculate centroid for KMix
+def calculate_centroid(args, config, N): #N is total dataset size
+    pretrain_dataset = BaseDataset(config, args, args.input, None, None)  #without augmentation 
+    dataloader = torch.utils.data.DataLoader(pretrain_dataset, batch_size=config["run"]["batch_size"], num_workers=config["run"]["num_dataloader_workers"])
+    batch = config["run"]["batch_size"]
+    for i, (input_tensor) in enumerate(dataloader):
+        aux = input_tensor.data.cpu().numpy() #feature from the final layer
+        aux = aux.squeeze(1).mean(axis=-1)
+        aux = aux.astype('float32')
+        if i == 0:
+            features = np.zeros((N, aux.shape[1]), dtype='float32')
+        
+        if i < len(dataloader) - 1:
+            features[i * batch: (i + 1) * batch] = aux
+        else:
+            # special treatment for final batch
+            features[i * batch:] = aux
+    final_features = features
+    kmeans = faiss.Kmeans(features.shape[-1], config["pretrain"]["augmentations"]["Kmix"]["cluster"], niter=config["pretrain"]["augmentations"]["Kmix"]["iter"], spherical=True)
+    kmeans.train(final_features)        
+    centroids = torch.from_numpy(kmeans.centroids).to(torch.float32)
+    return centroids
+
+
 
 def log_mixup_exp(xa, xb, alpha):
     xa = xa.exp()
@@ -127,13 +156,13 @@ class Kmix(nn.Module):
         centroid_path: centroid matrix path stored in torch tensor format
     """
 
-    def __init__(self, ratio=0.4, n_memory=2048, log_mixup_exp=True, top_k=None, centroid_path=None):
+    def __init__(self, args, config, len_of_files, ratio=0.4, n_memory=2048, log_mixup_exp=True, top_k=None, centroid_path=None):
         super().__init__()
         self.ratio = ratio
         self.n = n_memory
         self.log_mixup_exp = log_mixup_exp
         self.memory_bank = []
-        self.centroids = torch.load(centroid_path) #Centroid path must be in torch tensor format
+        self.centroids = calculate_centroid(args, config, len_of_files) #torch.load(centroid_path) #Centroid path must be in torch tensor format
         self.top_k = top_k
 
 
@@ -158,7 +187,7 @@ class Kmix(nn.Module):
                         flag = 1
                 if flag == 1:
                     break
-            l = l[:128] #take top 128
+            l = l[:self.top_k] #take top k
             return l[np.random.randint(len(l))]     
 
 

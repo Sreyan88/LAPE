@@ -1,6 +1,6 @@
 run:
-  num_dataloader_workers: 0
-  batch_size: 8
+  num_dataloader_workers: 14
+  batch_size: 64
   world_size: 1
   save_path: src/upstream/slicer
 
@@ -20,17 +20,13 @@ pretrain:
     sampling_rate: 16000                # the sampling rate of your audio; please maintain one sampling rate
     length_wave: 0.95
     n_mels: 64
+  pseudo_label_generation:
+    teacher_model_ckpt: /nlsasfs/home/nltm-pilot/ashishs/dump_all_model/apex_changedlr_indentify_checkpoints_upstream_deepcluster_new_norm_changed/checkpoints_deepcluster/checkpoint_89_.pth.tar
+    labels: 32
   augmentations:
     MixupBYOLA:
       ratio: 0.4
-      log_mixup_exp: True
-    Kmix:
-      ratio: 0.4
-      log_mixup_exp: True
-      top_k: 128
-      centroid_path: None
-    PatchDrop:
-      ratio: 0.3  
+      log_mixup_exp: True  
     RandomResizeCrop:
       virtual_crop_scale: [1.0,1.5]
       freq_crop_scale: [0.6,1.5]

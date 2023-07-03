@@ -26,5 +26,12 @@ pretrain:
       virtual_crop_scale: [1.0,1.5]
       freq_crop_scale: [0.6,1.5]
       time_crop_scale: [0.6,1.5]
+    Kmix:
+      ratio: 0.4
+      log_mixup_exp: True
+      top_k: 128
+      centroid_path: None
+      cluster: 4
+      iter: 20  
 
 

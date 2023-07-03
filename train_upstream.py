@@ -14,6 +14,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 
 from src.dataset import BaselineDataModule
 from src.augmentations import AugmentationModule
+from src.upstream.unfused.gen_pseudo import get_pseudo_label
 
 def main(args):
 
@@ -26,13 +27,7 @@ def main(args):
         with open(args.config, 'r') as duc:
             config = yaml.load(duc, Loader=yaml.FullLoader)
     print(config)
-
-    # load augmentation module
-    tfms = AugmentationModule(config, len(pd.read_csv(args.input)))
-    
-    dm = BaselineDataModule(config, args, tfms, data_csv = args.input, num_workers=config["run"]["num_dataloader_workers"], batch_size=config["run"]["batch_size"]) 
-    
-    # load upstream expert
+        
     module_path_expert = f'src.upstream.{args.upstream}.upstream_expert'
     expert = getattr(importlib.import_module(module_path_expert), 'Upstream_Expert')
 
@@ -40,6 +35,18 @@ def main(args):
     module_path_base_encoder = f'src.encoder'
     base_encoder = getattr(importlib.import_module(module_path_base_encoder), config["pretrain"]["base_encoder"]["type"])
     
+     # load augmentation module
+    tfms = AugmentationModule(config, args, len(pd.read_csv(args.input)))
+    
+    #new csv file with pseudo labels
+    if args.upstream == "unfused":
+        get_pseudo_label(config, args, base_encoder)
+        args.input = args.input.split('.')[0]+'_new'+'.'+args.input.split('.')[1]
+        print("New csv file with pseudo labels created at {0}".format(args.input))
+    
+    dm = BaselineDataModule(config, args, tfms, data_csv = args.input, num_workers=config["run"]["num_dataloader_workers"], batch_size=config["run"]["batch_size"], upstream_type=args.upstream) 
+    
+    # load upstream expert
     model = expert(config, base_encoder=base_encoder, datamodule=dm)
 
     # @Ashish do we need lambda for every term, please check this and modularize, 
@@ -51,15 +58,15 @@ def main(args):
                                 filename='{epoch}',
                                 monitor="train_loss", 
                                 mode="min",
-                                save_top_k=3)
+                                save_top_k=1)
         
     if torch.cuda.is_available():
         if args.load_checkpoint:
-            trainer = pl.Trainer(default_root_dir=config['run']['save_path'], gpus=config["run"]["world_size"], callbacks = [checkpoint_callback], accelerator="gpu", strategy="ddp", resume_from_checkpoint=args.load_checkpoint)
+            trainer = pl.Trainer(gpus=config["run"]["world_size"], callbacks = [checkpoint_callback], accelerator="gpu", strategy="ddp", resume_from_checkpoint=args.load_checkpoint)
         else:
-            trainer = pl.Trainer(default_root_dir=config['run']['save_path'], gpus=config["run"]["world_size"], callbacks = [checkpoint_callback], max_epochs=50)
+            trainer = pl.Trainer(gpus=config["run"]["world_size"], callbacks = [checkpoint_callback], max_epochs=1)
     else:
-        trainer = pl.Trainer(default_root_dir=config['run']['save_path'], checkpoint_callback = checkpoint_callback,)
+        trainer = pl.Trainer(checkpoint_callback = checkpoint_callback,)
     
     trainer.fit(model, dm)
     trainer.save_checkpoint(config['run']['save_path']+'final.ckpt')
@@ -68,11 +75,13 @@ def main(args):
 def get_args():
     parser = argparse.ArgumentParser(allow_abbrev=False)
 
+    # Clean the ones not required @Ashish
+
     # Add data arguments
-    parser.add_argument("--input", help="path to data directory", type=str, default='/fs/nexus-projects/audio-visual_dereverberation/githubs/audio-ssl/pre_train.csv')
+    parser.add_argument("--input", help="path to data directory", type=str, default='/nlsasfs/home/nltm-pilot/ashishs/pretrain_shuffled_final_short.csv')
     parser.add_argument('--load_checkpoint', type=str, help='load checkpoint', default = None)
     parser.add_argument('-c', '--config', metavar='CONFIG_PATH', help='The yaml file for configuring the whole experiment, except the upstream model', default = None)
-    parser.add_argument('--upstream', type=str, help='define the type of upstream', default = 'delores_m')
+    parser.add_argument('--upstream', type=str, help='define the type of upstream', default = 'unfused')
     # Add model arguments
     args = parser.parse_args()
     return args
