@@ -3,8 +3,9 @@ import torch.nn as nn
 
 from src.encoder.audiontt import AudioNTT2020Task6
 from src.encoder.efficientnet import Efficient_Net
-from src.encoder.mast import MAST as mast
+from src.encoder.mast import MAST
 
+'''
 class MAST(nn.Module):
     """
     Encoder for our ICASSP 2023 paper:
@@ -23,3 +24,4 @@ class MAST(nn.Module):
         z = self.mast_model(batch, patch_drop=self.patch_drop)
 
         return z
+'''

@@ -33,19 +33,22 @@ def collate_fn_padd(batch):
     return batch_1, batch_2
 
 
+
+
 class BaseDataset(Dataset):
 
-    def __init__(self, config, args, data_csv, tfms):
+    def __init__(self, config, args, data_csv, tfms, upstream_type):
 
         self.config = config
         #self.audio_files_list = data_dir_list
-        self.to_mel_spec = MelSpectrogramLibrosa()
+        self.to_mel_spec = MelSpectrogramLibrosa(n_mels=self.config["pretrain"]["input"]["n_mels"])
         self.tfms = tfms
         self.length = self.config["pretrain"]["input"]["length_wave"]
         self.norm_status = self.config["pretrain"]["normalization"]
         self.sampling_rate = self.config["pretrain"]["input"]["sampling_rate"]
-        self.upstream = args.upstream
+        self.upstream = upstream_type
         self.data = pd.read_csv(data_csv)
+        self.input_tdim = self.config["pretrain"]["base_encoder"]["input_tdim"]
 
     def __getitem__(self, idx):
 
@@ -61,28 +64,37 @@ class BaseDataset(Dataset):
         if self.config["pretrain"]["normalization"] == "l2":
             waveform = f.normalize(waveform,dim=-1,p=2) #l2 normalize
 
-        log_mel_spec = extract_log_mel_spectrogram(waveform, self.to_mel_spec) #convert to logmelspec
+        if self.config["pretrain"]["base_encoder"]["type"] == "MAST":
+            log_mel_spec = extract_log_mel_spectrogram(wave, self.to_mel_spec)
+            log_mel_spec = log_mel_spec.T
+            n_frames = log_mel_spec.shape[0]
+            
+            #padding on mel-spectrogram
+            padd = self.input_tdim - n_frames
+            
+            if padd > 0:
+                m = torch.nn.ZeroPad2d((0, 0, 0, padd))
+                log_mel_spec = m(log_mel_spec)
+            elif padd < 0:
+                log_mel_spec = log_mel_spec[0:self.input_tdim, :]
+            log_mel_spec = log_mel_spec.unsqueeze(0)
+            
+            #permute important for mast
+            log_mel_spec = log_mel_spec.permute(0,2,1)
 
-        if self.config["pretrain"]["base_encoder"] == "MAST":
-            pass #@Ashish please fill this and with rationales beside each line
-
-        # log_mel_spec = log_mel_spec.T
-
-        # n_frames = log_mel_spec.shape[0]
-
-        # p = 1024 - n_frames
-        # if p > 0:
-        #     m = torch.nn.ZeroPad2d((0, 0, 0, p))
-        #     log_mel_spec = m(log_mel_spec)
-        # elif p < 0:
-        #     log_mel_spec = log_mel_spec[0:1024, :]
+            if self.tfms:
+                lms = self.tfms(log_mel_spec) #do augmentations
+            
+            return (lms[0].permute(0,2,1), lms[1].permute(0,2,1))
 
 
+        log_mel_spec = extract_log_mel_spectrogram(waveform, self.to_mel_spec)
         log_mel_spec = log_mel_spec.unsqueeze(0)
-        # log_mel_spec = log_mel_spec.permute(0,2,1) #@Ashish if this is particular to MASt please add if condition like above
 
         if self.tfms:
             lms = self.tfms(log_mel_spec) #do augmentations
+        else:
+            lms = log_mel_spec
         if self.upstream == "unfused":
             return lms, label
         return lms
@@ -96,7 +108,7 @@ class BaseDataset(Dataset):
 
 class BaselineDataModule(pl.LightningDataModule):
 
-    def __init__(self, config, args, tfms, data_csv='./', batch_size=8, num_workers = 8):
+    def __init__(self, config, args, tfms, data_csv='./', batch_size=8, num_workers = 8, upstream_type=None):
         super().__init__()
         self.config = config
         self.args = args
@@ -105,12 +117,13 @@ class BaselineDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.transformation = tfms
         self.dataset_sizes = {}
+        self.upstream = upstream_type
 
     def setup(self, stage = None):
 
         if stage == 'fit' or stage is None:
 
-            self.train_dataset  = BaseDataset(self.config, self.args, self.data_dir_train, self.transformation)
+            self.train_dataset  = BaseDataset(self.config, self.args, self.data_dir_train, self.transformation, self.upstream)
             self.dataset_sizes['train'] = len(self.train_dataset)
             
 

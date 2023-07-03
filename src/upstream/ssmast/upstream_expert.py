@@ -7,59 +7,10 @@ from typing import Union
 #from pl_bolts.metrics import mean, precision_at_k
 # from torchmetrics import Precision
 
+from src.utils import off_diagonal, concat_all_gather
+from src.upstream.ssmast.upstream_encoder import SSMAST as SSMAST
 
-from models_delores import AudioNTT2020Task6
-from models_msn import AudioNTT2020
-from utils import off_diagonal, concat_all_gather, adjust_moco_momentum, LARS
-import contrastive_loss
-
-
-
-class Projection(nn.Module):
-    def __init__(self, in_dim,lambd=5e-5,scale_loss=1/32):
-        super().__init__()
-        # projector
-        sizes = [in_dim, 2048, 2048,2048]
-        layers = []
-        for i in range(len(sizes) - 2):
-            layers.append(nn.Linear(sizes[i], sizes[i + 1], bias=False))
-            layers.append(nn.BatchNorm1d(sizes[i + 1]))
-            layers.append(nn.ReLU(inplace=True))
-        layers.append(nn.Linear(sizes[-2], sizes[-1], bias=False))
-        self.projector = nn.Sequential(*layers)
-        self.lambd=lambd
-        self.scale_loss=scale_loss
-
-        # normalization layer for the representations z1 and z2
-        self.bn = nn.BatchNorm1d(sizes[-1], affine=False)
-        
-
-    def forward(self, y1, y2):
-        z1 = self.projector(y1)
-        z2 = self.projector(y2)
-        batch_size = z1.shape[0]
-
-        # empirical cross-correlation matrix
-        c = self.bn(z1).T @ self.bn(z2)
-
-        # sum the cross-correlation matrix between all gpus
-        c.div_(batch_size)
-#         torch.distributed.all_reduce(c)
-
-        # use --scale-loss to multiply the loss by a constant factor
-        # see the Issues section of the readme
-        on_diag = torch.diagonal(c).add_(-1).pow_(2).sum().mul(self.scale_loss)
-        off_diag = off_diagonal(c).pow_(2).sum().mul(self.scale_loss)
-        loss = self.lambd *on_diag + self.lambd * off_diag
-#         print(on_diag)
-#         print(off_diag)
-        return loss
-
-# precision = Precision() 
-
-
-
-class Moco_v2(pl.LightningModule):
+class Upstream_Expert(pl.LightningModule):
     """
     PyTorch Lightning implementation of `Moco <https://arxiv.org/abs/2003.04297>`_
     Paper authors: Xinlei Chen, Haoqi Fan, Ross Girshick, Kaiming He.
@@ -84,20 +35,19 @@ class Moco_v2(pl.LightningModule):
 
     def __init__(
         self,
-        arguments,
-        base_encoder: Union[str, torch.nn.Module] = 'resnet18',
-        emb_dim: int = 256,
+        config,
+        base_encoder,
+        emb_dim: int = 128,
         num_negatives: int = 65536,
         encoder_momentum: float = 0.999,
         softmax_temperature: float = 0.07,
-        learning_rate: float = 0.0003,
+        learning_rate: float = 0.03,
         momentum: float = 0.9,
-        weight_decay: float = 0,
+        weight_decay: float = 1e-4,
         data_dir: str = './',
         batch_size: int = 256,
         use_mlp: bool = False,
         num_workers: int = 8,
-        lamb_values = [0.25,0.25,0.25,0.25],
         *args,
         **kwargs
     ):
@@ -121,18 +71,17 @@ class Moco_v2(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        self.arguments = arguments
-
-        # create the encoders
-        # num_classes is the output fc dimension
-        self.encoder_q, self.encoder_k = self.init_encoders(base_encoder)
-        #self.predictor = self._build_mlp(2, 256, 4096, 256)
+        self.config = config
+        self.base_encoder = base_encoder
+  
+        self.encoder_q, self.encoder_k = self.init_encoders(self.base_encoder)
 
         if use_mlp:  # hack: brute-force replacement
             dim_mlp = self.encoder_q.fc.weight.shape[1]
             self.encoder_q.fc = nn.Sequential(nn.Linear(dim_mlp, dim_mlp), nn.ReLU(), self.encoder_q.fc)
             self.encoder_k.fc = nn.Sequential(nn.Linear(dim_mlp, dim_mlp), nn.ReLU(), self.encoder_k.fc)
 
+        # copy weights between student and teacher
         for param_q, param_k in zip(self.encoder_q.parameters(), self.encoder_k.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
             param_k.requires_grad = False  # not update by gradient
@@ -142,48 +91,24 @@ class Moco_v2(pl.LightningModule):
         self.queue = nn.functional.normalize(self.queue, dim=0)
 
         self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
-        self.lamb_values = lamb_values
-        #self.p1 = Projection(2048,self.lamb_values[0])
-        #self.p2 = Projection(1024,self.lamb_values[1])
-        #self.p3 = Projection(512,self.lamb_values[2])
-
+        
 
     def init_encoders(self, base_encoder):
         """
         Override to add your own encoders
         """
-        encoder_q = AudioNTT2020(256, n_mels=128, d=768)
-        encoder_k = AudioNTT2020(256, n_mels=128, d=768)
+        encoder_q = SSMAST(self.config, base_encoder)
+        encoder_k = SSMAST(self.config, base_encoder)
 
         return encoder_q, encoder_k
-
-    def _build_mlp(self, num_layers, input_dim, mlp_dim, output_dim, last_bn=True):
-        mlp = []
-        for l in range(num_layers):
-            dim1 = input_dim if l == 0 else mlp_dim
-            dim2 = output_dim if l == num_layers - 1 else mlp_dim
-
-            mlp.append(nn.Linear(dim1, dim2, bias=False))
-
-            if l < num_layers - 1:
-                mlp.append(nn.BatchNorm1d(dim2))
-                mlp.append(nn.ReLU(inplace=True))
-            elif last_bn:
-                # follow SimCLR's design: https://github.com/google-research/simclr/blob/master/model_util.py#L157
-                # for simplicity, we further removed gamma in BN
-                mlp.append(nn.BatchNorm1d(dim2, affine=False))
-
-        return nn.Sequential(*mlp)    
-    
     
     @torch.no_grad()
-    def _momentum_update_key_encoder(self, epoch):
+    def _momentum_update_key_encoder(self):
         """
         Momentum update of the key encoder
         """
-        em = adjust_moco_momentum(epoch+1)
         for param_q, param_k in zip(self.encoder_q.parameters(), self.encoder_k.parameters()):
-            #em = self.hparams.encoder_momentum
+            em = self.hparams.encoder_momentum
             param_k.data = param_k.data * em + param_q.data * (1. - em)
 
     @torch.no_grad()
@@ -250,7 +175,8 @@ class Moco_v2(pl.LightningModule):
 
         return x_gather[idx_this]
 
-    def forward(self, img_q, img_k, epoch):
+
+    def forward(self, img_q=None, img_k=None, epoch=None):
         """
         Input:
             im_q: a batch of query images
@@ -258,8 +184,6 @@ class Moco_v2(pl.LightningModule):
         Output:
             logits, targets
         """
-
-        # compute query features
         q = self.encoder_q(img_q)  # queries: NxC
         q = nn.functional.normalize(q, dim=1)
 
@@ -269,7 +193,7 @@ class Moco_v2(pl.LightningModule):
             self._momentum_update_key_encoder(epoch)  # update the key encoder
 
             # shuffle for making use of BN
-            if self.trainer.strategy =="ddp":
+            if self.trainer.use_ddp or self.trainer.use_ddp2:
                 img_k, idx_unshuffle = self._batch_shuffle_ddp(img_k)
 
             k = self.encoder_k(img_k)  # keys: NxC
@@ -277,7 +201,7 @@ class Moco_v2(pl.LightningModule):
 
 
             # undo shuffle
-            if self.trainer.strategy =="ddp":
+            if self.trainer.use_ddp or self.trainer.use_ddp2:
                 k = self._batch_unshuffle_ddp(k, idx_unshuffle)
 
         # compute logits
@@ -302,42 +226,21 @@ class Moco_v2(pl.LightningModule):
 
         return logits, labels
 
-    def loss_fn(self, x, y):
-        x = F.normalize(x, dim=-1, p=2)
-        y = F.normalize(y, dim=-1, p=2)
-        l = 2 - 2 * (x * y).sum(dim=-1)
-        #print(l)
-        #print(l.shape)
-        return l.mean()
-
-    def loss_cluster(self, q_cluster, k_cluster):
-        return criterion_cluster(q_cluster, k_cluster)
 
     def training_step(self, batch, batch_idx):
-        # in STL10 we pass in both lab+unl for online ft
-        #print(self.trainer.current_epoch)
-        if self.trainer.current_epoch % 1 == 0:
-            #print(self.trainer.current_epoch)
-            if self.trainer.datamodule.name == 'stl10':
-            # labeled_batch = batch[1]
-                unlabeled_batch = batch[0]
-                batch = unlabeled_batch
+        
+        img_1, img_2 = batch
+        output, target  = self(img_q=img_1, img_k=img_2, epoch=self.trainer.current_epoch)
+        output_1, target_1 = self(img_q=img_2, img_k=img_1, epoch=self.trainer.current_epoch)
+        loss_0 = F.cross_entropy(output.float(), target.long())
+        loss_1 = F.cross_entropy(output_1.float(), target_1.long())
+        loss = loss_0 + loss_1
+        print('Main loss = {}'.format(loss))
 
-            img_1, img_2 = batch
-
-            output, target  = self(img_q=img_1, img_k=img_2, epoch=self.trainer.current_epoch)
-            output_1, target_1 = self(img_q=img_2, img_k=img_1, epoch=self.trainer.current_epoch)
-            #loss = self.loss_fn(q3,k3)
-            #print(q_cluster.shape)
-            loss_0 = F.cross_entropy(output.float(), target.long())
-            loss_1 = F.cross_entropy(output_1.float(), target_1.long())
-            loss = loss_0 + loss_1
-            print('Main loss = {}'.format(loss))
-
-            log = {'train_loss': loss}
+        log = {'train_loss': loss}
             # log = {'train_loss': loss, 'train_acc1': acc1, 'train_acc5': acc5}
-            self.log_dict(log)
-            return loss
+        self.log_dict(log)
+        return loss
 
     def validation_step(self, batch, batch_idx):
         # in STL10 we pass in both lab+unl for online ft
@@ -350,7 +253,6 @@ class Moco_v2(pl.LightningModule):
 
         output, target,q1,q2,q3,q4,k1,k2,k3,k4 = self(img_q=img_1, img_k=img_2)
         loss = F.cross_entropy(output.float(), target.long())
-#         print('Main loss = {}'.format(loss))
 
         loss+= self.p1(q1,k1)
         loss+= self.p2(q2,k2)
@@ -371,9 +273,10 @@ class Moco_v2(pl.LightningModule):
         self.log_dict(log)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
+        optimizer = torch.optim.SGD(
             self.parameters(),
             self.hparams.learning_rate,
+            momentum=self.hparams.momentum,
             weight_decay=self.hparams.weight_decay
         )
         return optimizer

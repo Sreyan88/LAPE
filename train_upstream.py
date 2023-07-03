@@ -35,6 +35,7 @@ def main(args):
     module_path_base_encoder = f'src.encoder'
     base_encoder = getattr(importlib.import_module(module_path_base_encoder), config["pretrain"]["base_encoder"]["type"])
     
+    print(base_encoder)
      # load augmentation module
     tfms = AugmentationModule(config, args, len(pd.read_csv(args.input)))
     
@@ -81,7 +82,7 @@ def get_args():
     parser.add_argument("--input", help="path to data directory", type=str, default='/nlsasfs/home/nltm-pilot/ashishs/pretrain_shuffled_final_short.csv')
     parser.add_argument('--load_checkpoint', type=str, help='load checkpoint', default = None)
     parser.add_argument('-c', '--config', metavar='CONFIG_PATH', help='The yaml file for configuring the whole experiment, except the upstream model', default = None)
-    parser.add_argument('--upstream', type=str, help='define the type of upstream', default = 'unfused')
+    parser.add_argument('--upstream', type=str, help='define the type of upstream', default = 'ssmast')
     # Add model arguments
     args = parser.parse_args()
     return args

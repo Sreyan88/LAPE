@@ -1,0 +1,36 @@
+run:
+  num_dataloader_workers: 8
+  batch_size: 16
+  world_size: 1
+  save_path: src/upstream/ssmast
+
+pretrain:
+  base_encoder:       # options are ....
+    type:  MAST
+    label_dim: 527
+    fstride: 10
+    tstride: 10
+    input_fdim: 128
+    input_tdim: 1024
+    imagenet_pretrain: False
+    audioset_pretrain: False
+    model_size: 'base'
+    verbose: True
+    emb_dim: 768
+    out_dim: 256
+  
+  normalization: mean_var               # options mean_var (zero mean and unit variance) or l2
+  input:
+    type: raw_wav                       # options are raw_wav or mel spectrogram
+    sampling_rate: 16000                # the sampling rate of your audio; please maintain one sampling rate
+    length_wave: 0.95
+    n_mels: 128
+  augmentations:
+    MixupBYOLA:
+      ratio: 0.4
+      log_mixup_exp: True
+    RandomResizeCrop:
+      virtual_crop_scale: [1.0,1.5]
+      freq_crop_scale: [0.6,1.5]
+      time_crop_scale: [0.6,1.5]
+
