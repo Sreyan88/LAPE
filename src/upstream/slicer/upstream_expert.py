@@ -234,7 +234,7 @@ class Upstream_Expert(pl.LightningModule):
         print(log)
         self.log_dict(log)
 
-        return loss
+        return loss_combine
 
     def validation_step(self, batch, batch_idx):
         # in STL10 we pass in both lab+unl for online ft
