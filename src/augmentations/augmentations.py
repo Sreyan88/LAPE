@@ -11,7 +11,12 @@ import faiss
 
 #calculate centroid for KMix
 def calculate_centroid(args, config, N): #N is total dataset size
-    pretrain_dataset = BaseDataset(config, args, args.input, None, None)  #without augmentation 
+    data_file = pd.read_csv(args.input)
+    data_file = data_file.sample(frac=0.05)
+    N = len(data_file)
+    sample_data_path = args.input.split('.')[0]+'_sample'+'.'+args.input.split('.')[1]
+    data_file.to_csv(sample_data_path, index=False)
+    pretrain_dataset = BaseDataset(config, args, sample_data_path, None, None)  #without augmentation 
     dataloader = torch.utils.data.DataLoader(pretrain_dataset, batch_size=config["run"]["batch_size"], num_workers=config["run"]["num_dataloader_workers"])
     batch = config["run"]["batch_size"]
     for i, (input_tensor) in enumerate(dataloader):
