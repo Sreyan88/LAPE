@@ -63,7 +63,7 @@ def main(args):
         
     if torch.cuda.is_available():
         if args.load_checkpoint:
-            trainer = pl.Trainer(default_root_dir=config['run']['save_path'], gpus=config["run"]["world_size"], callbacks = [checkpoint_callback], accelerator="gpu", strategy="ddp", resume_from_checkpoint=args.load_checkpoint)
+            trainer = pl.Trainer(default_root_dir=config['run']['save_path'], gpus=config["run"]["world_size"], callbacks = [checkpoint_callback], max_epochs=50, resume_from_checkpoint=args.load_checkpoint)
         else:
             trainer = pl.Trainer(default_root_dir=config['run']['save_path'], gpus=config["run"]["world_size"], callbacks = [checkpoint_callback], max_epochs=50)
     else:
