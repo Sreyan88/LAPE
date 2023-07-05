@@ -37,40 +37,30 @@ class MAST(nn.Module):
     :param audioset_pretrain: if use full AudioSet and ImageNet pretrained model
     :param model_size: the model size of AST, should be in [tiny224, small224, base224, base384], base224 and base 384 are same model, but are trained differently during ImageNet pretraining.
     """
-    def __init__(self, config):
-        
-        self.verbose = config["pretrain"]["base_encoder"]["verbose"]
-        self.label_dim = config["pretrain"]["base_encoder"]["label_dim"]
-        self.fstride = config["pretrain"]["base_encoder"]["fstride"]
-        self.tstride = config["pretrain"]["base_encoder"]["tstride"]
-        self.input_fdim = config["pretrain"]["base_encoder"]["input_fdim"]
-        self.input_tdim = config["pretrain"]["base_encoder"]["input_tdim"]
-        self.imagenet_pretrain = config["pretrain"]["base_encoder"]["imagenet_pretrain"]
-        self.audioset_pretrain = config["pretrain"]["base_encoder"]["audioset_pretrain"]
-        self.model_size = config["pretrain"]["base_encoder"]["model_size"]
+    def __init__(self, label_dim=None, fstride=10, tstride=10, input_fdim=128, input_tdim=512, imagenet_pretrain=False, audioset_pretrain=False, model_size='base', verbose=True, return_cls=False):
 
         super(MAST, self).__init__()
 
-        if self.verbose == True:
+        if verbose == True:
             print('---------------MAST Model Summary---------------')
-            print('ImageNet pretraining: {:s}, AudioSet pretraining: {:s}'.format(str(self.imagenet_pretrain),str(self.audioset_pretrain)))
+            print('ImageNet pretraining: {:s}, AudioSet pretraining: {:s}'.format(str(imagenet_pretrain),str(audioset_pretrain)))
 
         timm.models.mvitv2.PatchEmbed = Patch_Embed
         self.mlp_head = None
         self.has_cls = False
 
         # if AudioSet pretraining is not used (but ImageNet pretraining may still apply)
-        if self.audioset_pretrain == False:
-            if self.model_size == 'large':
-                self.v = timm.create_model('mvitv2_large', pretrained=self.imagenet_pretrain)
-            elif self.model_size == 'small':
-                self.v = timm.create_model('mvitv2_small', pretrained=self.imagenet_pretrain)
-            elif self.model_size == 'tiny':
-                self.v = timm.create_model('mvitv2_tiny', pretrained=self.imagenet_pretrain)
-            elif self.model_size == 'base':
-                self.v = timm.create_model('mvitv2_base', pretrained=self.imagenet_pretrain)
-            elif self.model_size == 'small_cls':
-                self.v = timm.create_model('mvitv2_small_cls', pretrained=self.imagenet_pretrain)
+        if audioset_pretrain == False:
+            if model_size == 'large':
+                self.v = timm.create_model('mvitv2_large', pretrained=imagenet_pretrain)
+            elif model_size == 'small':
+                self.v = timm.create_model('mvitv2_small', pretrained=imagenet_pretrain)
+            elif model_size == 'tiny':
+                self.v = timm.create_model('mvitv2_tiny', pretrained=imagenet_pretrain)
+            elif model_size == 'base':
+                self.v = timm.create_model('mvitv2_base', pretrained=imagenet_pretrain)
+            elif model_size == 'small_cls':
+                self.v = timm.create_model('mvitv2_small_cls', pretrained=imagenet_pretrain)
                 self.has_cls = True
             else:
                 raise Exception('Model size must be one of tiny, small, base, large or small_cls.')
@@ -80,26 +70,26 @@ class MAST(nn.Module):
             self.original_embedding_dim = self.v.pos_embed.shape[2]
 
             # optional to specify the last MLP layer for a specific class
-            if self.label_dim is not None:
-                self.mlp_head = nn.Sequential(nn.LayerNorm(768), nn.Linear(768, self.label_dim))
+            if label_dim is not None:
+                self.mlp_head = nn.Sequential(nn.LayerNorm(768), nn.Linear(768, label_dim))
 
             # automatcially get the intermediate shape
-            f_dim, t_dim = self.get_shape(self.fstride, self.tstride, self.input_fdim, self.input_tdim)
+            f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim)
             num_patches = f_dim * t_dim
             self.v.patch_embed.num_patches = num_patches
-            if self.verbose == True:
-                print('frequncey stride={:d}, time stride={:d}'.format(self.fstride, self.tstride))
+            if verbose == True:
+                print('frequncey stride={:d}, time stride={:d}'.format(fstride, tstride))
                 print('number of patches={:d}'.format(num_patches))
 
             # the linear projection layer
-            new_proj = torch.nn.Conv2d(1, self.original_embedding_dim, kernel_size=(16,16), stride=(self.fstride, self.tstride))
-            if self.imagenet_pretrain == True:
+            new_proj = torch.nn.Conv2d(1, self.original_embedding_dim, kernel_size=(16,16), stride=(fstride, tstride))
+            if imagenet_pretrain == True:
                 new_proj.weight = torch.nn.Parameter(torch.sum(self.v.patch_embed.proj.weight, dim=1).unsqueeze(1))
                 new_proj.bias = self.v.patch_embed.proj.bias
             self.v.patch_embed.proj = new_proj
 
             # the positional embedding
-            if self.imagenet_pretrain == True:
+            if imagenet_pretrain == True:
                 # get the positional embedding from deit model, skip the first two tokens (cls token and distillation token), reshape it to original 2D shape (24*24).
                 new_pos_embed = self.v.pos_embed[:, 2:, :].detach().reshape(1, self.original_num_patches, self.original_embedding_dim).transpose(1, 2).reshape(1, self.original_embedding_dim, self.oringal_hw, self.oringal_hw)
                 # cut (from middle) or interpolate the second dimension of the positional embedding
@@ -125,29 +115,29 @@ class MAST(nn.Module):
                 trunc_normal_(self.v.pos_embed, std=.02)
 
         # now load a model that is pretrained on both ImageNet and AudioSet
-        elif self.audioset_pretrain == True:
-            if self.audioset_pretrain == True and self.imagenet_pretrain == False:
+        elif audioset_pretrain == True:
+            if audioset_pretrain == True and imagenet_pretrain == False:
                 raise ValueError('currently model pretrained on only audioset is not supported, please set imagenet_pretrain = True to use audioset pretrained model.')
-            if self.model_size != 'base384':
+            if model_size != 'base384':
                 raise ValueError('currently only has base384 AudioSet pretrained model.')
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if os.path.exists('../../pretrained_models/audioset_10_10_0.4593.pth') == False:
                 audioset_mdl_url = 'https://www.dropbox.com/s/cv4knew8mvbrnvq/audioset_0.4593.pth?dl=1'
                 wget.download(audioset_mdl_url, out='../../pretrained_models/audioset_10_10_0.4593.pth')
             sd = torch.load('../../pretrained_models/audioset_10_10_0.4593.pth', map_location=device)
-            audio_model = MAST(config)
+            audio_model = MASTModel(label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, imagenet_pretrain=False, audioset_pretrain=False, model_size='base384', verbose=False)
             audio_model = torch.nn.DataParallel(audio_model)
             audio_model.load_state_dict(sd, strict=False)
             self.v = audio_model.module.v
             self.original_embedding_dim = self.v.pos_embed.shape[2]
-            if self.label_dim is not None:
-                self.mlp_head = nn.Sequential(nn.LayerNorm(768), nn.Linear(768, self.label_dim))
+            if label_dim is not None:
+                self.mlp_head = nn.Sequential(nn.LayerNorm(768), nn.Linear(768, label_dim))
 
-            f_dim, t_dim = self.get_shape(self.fstride, self.tstride, self.input_fdim, input_tdim)
+            f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim)
             num_patches = f_dim * t_dim
             self.v.patch_embed.num_patches = num_patches
-            if self.verbose == True:
-                print('frequncey stride={:d}, time stride={:d}'.format(self.fstride, self.tstride))
+            if verbose == True:
+                print('frequncey stride={:d}, time stride={:d}'.format(fstride, tstride))
                 print('number of patches={:d}'.format(num_patches))
 
             new_pos_embed = self.v.pos_embed[:, 2:, :].detach().reshape(1, 1212, 768).transpose(1, 2).reshape(1, 768, 12, 101)
@@ -166,19 +156,21 @@ class MAST(nn.Module):
             self.v.pos_embed = nn.Parameter(torch.cat([self.v.pos_embed[:, :2, :].detach(), new_pos_embed], dim=1))
 
     def get_shape(self, fstride, tstride, input_fdim=128, input_tdim=1024):
-        test_input = torch.randn(1, 1, self.input_fdim, input_tdim)
-        test_proj = nn.Conv2d(1, self.original_embedding_dim, kernel_size=(16, 16), stride=(self.fstride, self.tstride))
+        test_input = torch.randn(1, 1, input_fdim, input_tdim)
+        test_proj = nn.Conv2d(1, self.original_embedding_dim, kernel_size=(16, 16), stride=(fstride, tstride))
         test_out = test_proj(test_input)
         f_dim = test_out.shape[2]
         t_dim = test_out.shape[3]
         return f_dim, t_dim
 
     @autocast()
-    def forward(self, x, patch_drop=0, return_cls=False):
+    def forward(self, x, patch_drop=0.0, return_cls=False):
         """
         :param x: the input spectrogram, expected shape: (batch_size, time_frame_num, frequency_bins), e.g., (12, 1024, 128)
         :return: prediction
         """
+        # expect input x = (batch_size, time_frame_num, frequency_bins), e.g., (12, 1024, 128)
+        #x = x.unsqueeze(1)
         x = x.transpose(2, 3)
 
         B = x.shape[0]
@@ -208,7 +200,11 @@ class MAST(nn.Module):
             x = self.mlp_head(x)
 
         return x
-    
 
-    def __repr__(self):
-        return "MAST"
+
+if __name__ == '__main__':
+    input_tdim = 512
+    ast_mdl = MAST(label_dim=None, input_tdim=input_tdim, imagenet_pretrain = False, audioset_pretrain = False, model_size='base', return_cls=False)
+    test_input = torch.rand([10, input_tdim, 128])
+    test_output = ast_mdl(test_input,patch_drop=0.0)
+    print(test_output.shape)

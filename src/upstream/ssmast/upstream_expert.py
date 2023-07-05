@@ -37,7 +37,7 @@ class Upstream_Expert(pl.LightningModule):
         self,
         config,
         base_encoder,
-        emb_dim: int = 128,
+        emb_dim: int = 256,
         num_negatives: int = 65536,
         encoder_momentum: float = 0.999,
         softmax_temperature: float = 0.07,
@@ -190,7 +190,7 @@ class Upstream_Expert(pl.LightningModule):
 
         # compute key features
         with torch.no_grad():  # no gradient to keys
-            self._momentum_update_key_encoder(epoch)  # update the key encoder
+            self._momentum_update_key_encoder()  # update the key encoder
 
             # shuffle for making use of BN
             if self.trainer.use_ddp or self.trainer.use_ddp2:
@@ -209,6 +209,8 @@ class Upstream_Expert(pl.LightningModule):
         # positive logits: Nx1
         l_pos = torch.einsum('nc,nc->n', [q, k]).unsqueeze(-1)
         # negative logits: NxK
+        print('q shape', q.shape)
+        print('queue shape', self.queue.shape)
         l_neg = torch.einsum('nc,ck->nk', [q, self.queue.clone().detach()])
 
         # logits: Nx(1+K)

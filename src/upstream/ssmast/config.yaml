@@ -5,20 +5,10 @@ run:
   save_path: src/upstream/ssmast
 
 pretrain:
-  base_encoder:       # options are ....
-    type:  MAST
-    label_dim: 527
-    fstride: 10
-    tstride: 10
-    input_fdim: 128
-    input_tdim: 1024
-    imagenet_pretrain: False
-    audioset_pretrain: False
-    model_size: 'base'
-    verbose: True
+  base_encoder:
+    type: MAST       # options are ....
     emb_dim: 768
-    out_dim: 256
-  
+    out_dim: 256  
   normalization: mean_var               # options mean_var (zero mean and unit variance) or l2
   input:
     type: raw_wav                       # options are raw_wav or mel spectrogram

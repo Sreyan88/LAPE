@@ -48,11 +48,7 @@ class BaseDataset(Dataset):
         self.sampling_rate = self.config["pretrain"]["input"]["sampling_rate"]
         self.upstream = upstream_type
         self.data = pd.read_csv(data_csv)
-
-        if self.config["pretrain"]["base_encoder"] == 'MAST':
-            self.input_tdim = self.config["pretrain"]["base_encoder"]["input_tdim"]
-        else:
-            self.input_tdim = None
+        self.input_tdim = 512 #@sreyan where to put this as a argument
 
     def __getitem__(self, idx):
 

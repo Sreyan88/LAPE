@@ -17,7 +17,7 @@ class SSMAST(nn.Module):
     """
     def __init__(self, config, base_encoder):
         super(SSMAST, self).__init__()
-        self.encoder = base_encoder(config)
+        self.encoder = base_encoder()
         emb_dim = config["pretrain"]["base_encoder"]["emb_dim"] #768
         fc = OrderedDict([])
         fc['fc1'] = torch.nn.Linear(emb_dim, config["pretrain"]["base_encoder"]["out_dim"]) #256
