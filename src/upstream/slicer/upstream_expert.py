@@ -41,7 +41,7 @@ class Upstream_Expert(pl.LightningModule):
         num_negatives: int = 65536,
         encoder_momentum: float = 0.999,
         softmax_temperature: float = 0.07,
-        learning_rate: float = 0.03,
+        learning_rate: float = 0.0003,
         momentum: float = 0.9,
         weight_decay: float = 1e-4,
         data_dir: str = './',
