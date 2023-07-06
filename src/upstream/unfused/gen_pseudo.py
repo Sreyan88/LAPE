@@ -84,8 +84,9 @@ def gen_pseudo_label(gpu, config, args, base_encoder):
     final_model = nn.parallel.DistributedDataParallel(final_model, device_ids=[gpu],find_unused_parameters=True)
     
     cudnn.benchmark = True
-    checkpoint = torch.load(config["pretrain"]["pseudo_label_generation"]["teacher_model_ckpt"])   
-    final_model.load_state_dict(checkpoint['state_dict'], strict=False)    
+    checkpoint = torch.load(config["pretrain"]["pseudo_label_generation"]["teacher_model_ckpt"])
+    new_state_dict = {'module'+'.'+'.'.join(key.split('.')[2:]):value for key, value in checkpoint['state_dict'].items()}
+    final_model.load_state_dict(new_state_dict, strict=False)    
     pretrain_dataset = BaseDataset(config, args, args.input, None, None)  #without augmentation 
 
     train_loader = torch.utils.data.DataLoader(pretrain_dataset, batch_size=config["run"]["batch_size"], num_workers=config["run"]["num_dataloader_workers"])
