@@ -22,7 +22,9 @@ Its simple! First create a csv file with a single column named *files*. That col
 python train_upstream.py --input /path/to/csv/ --upstream name_of_upstream
 ```
 
-The `name_of_upstream` should be the name of the upstream algorithm you want to use. The upstreams we currently support are: Additionally, all other defaults (encoder, learning rate, etc.) are set in the upstream specific configs. An example can be seen in `slicer/config.yaml`. Feel free to change it according to your needs! 
+The `name_of_upstream` should be the name of the upstream algorithm you want to use. The upstreams we currently support are: [DeLoRes](https://arxiv.org/abs/2203.13628), [SLICER](https://ieeexplore.ieee.org/document/10096970), [MAST](https://arxiv.org/abs/2211.01515) and [UNFUSED](https://arxiv.org/abs/2303.05668) Additionally, all other defaults (encoder, learning rate, etc.) are set in the upstream specific configs. An example can be seen in `slicer/config.yaml`. Feel free to change it according to your needs! 
+
+**Note:** For [MAST](https://arxiv.org/abs/2211.01515) you need to change the `base_encoder:` `type` in config to `MAST`.
 
 ### Downstream Task Fine-tuning
 
